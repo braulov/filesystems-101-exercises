@@ -8,7 +8,7 @@
 #include <stdlib.h>
 
 #define MAX_ARGS 2000
-#define MAX_LENGTH_ARG 1000
+#define MAX_LENGTH_ARG 500
 #define MAX_LENGTH_PATH 256
 void split(char* path, char** args) {
     FILE *file = fopen(path,"rb");
