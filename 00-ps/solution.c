@@ -29,7 +29,6 @@ void split(char* path, char** args) {
         id++;
         current += strlen(current) + 1;
     }
-    free(buffer);
 }
 void find_path(pid_t pid, char* path) {
     char *path_to_exe = malloc((MAX_LENGTH_PATH+1) * sizeof(char));
@@ -80,6 +79,8 @@ void ps(void)
             for(int i = 0; i < MAX_ARGS; i++) {
                 argv[i] = malloc((MAX_LENGTH_ARG+1) * sizeof(char));
                 envp[i] = malloc((MAX_LENGTH_ARG+1) * sizeof(char));
+                memset(argv[i],0,(MAX_LENGTH_ARG+1)*sizeof(char));
+                memset(envp[i],0,(MAX_LENGTH_ARG+1)*sizeof(char));
             }
 
 
