@@ -17,34 +17,44 @@ void split(char* path, char** args) {
         return;
     }
 
-    long fileSize = MAX_LENGTH_ARG*MAX_ARGS;
-    char buffer[fileSize+1];
+    long fileSize = (MAX_LENGTH_ARG+1)*(MAX_ARGS+1);
+    char* buffer = malloc(fileSize * sizeof(char));
     size_t bytesRead = fread(buffer, 1, fileSize,file);
     buffer[bytesRead]='\0';
+    char* current = buffer;
     fclose(file);
-    char* currentArg = buffer;
     int id = 0;
-    while(*currentArg != '\0' && id < MAX_ARGS) {
-        args[id] = currentArg;
+    while(id < MAX_ARGS) {
+        args[id] = current;
         id++;
-        currentArg += strlen(currentArg) + 1;
+        current += strlen(current) + 1;
     }
+    free(buffer);
 }
 void find_path(pid_t pid, char* path) {
-    char path_to_exe[256];
-    snprintf(path_to_exe, sizeof(path_to_exe), "/proc/%d/exe", pid);
-    if (readlink(path_to_exe,path,256)!=-1) return;
-    else report_error(path_to_exe, errno);
+    char *path_to_exe = malloc((MAX_LENGTH_PATH+1) * sizeof(char));
+    snprintf(path_to_exe, (MAX_LENGTH_PATH+1) * sizeof(char), "/proc/%d/exe", pid);
+    if (readlink(path_to_exe,path,256)!=-1) {
+        free(path_to_exe);
+        return;
+    }
+    else {
+        path = "";
+        report_error(path_to_exe, errno);
+        free(path_to_exe);
+    }
 }
 void find_arg(pid_t pid, char** argv) {
-    char path[256];
-    snprintf(path, sizeof(path), "/proc/%d/cmdline", pid);
+    char *path = malloc((MAX_LENGTH_PATH+1) * sizeof(char));
+    snprintf(path, (MAX_LENGTH_PATH+1) * sizeof(char), "/proc/%d/cmdline", pid);
     split(path, argv);
+    free(path);
 }
 void find_env(pid_t pid, char** envp) {
-    char path[256];
-    snprintf(path, sizeof(path), "/proc/%d/environ", pid);
+    char *path = malloc((MAX_LENGTH_PATH+1) * sizeof(char));
+    snprintf(path, (MAX_LENGTH_PATH+1) * sizeof(char), "/proc/%d/environ", pid);
     split(path, envp);
+    free(path);
 }
 void ps(void)
 {
@@ -63,31 +73,34 @@ void ps(void)
 
             pid_t pid = atoi(entry->d_name);
 
-            char *true_path = malloc(MAX_LENGTH_PATH * sizeof(char));
-            char** argv = malloc(MAX_ARGS * sizeof(char*));
+            char *true_path = malloc((MAX_LENGTH_PATH+1) * sizeof(char));
+            memset(true_path,0,(MAX_LENGTH_PATH+1)*sizeof(char));
+            char** argv = malloc((MAX_ARGS+1) * sizeof(char*));
+            char** envp = malloc((MAX_ARGS+1) * sizeof(char*));
             for(int i = 0; i < MAX_ARGS; i++) {
-                argv[i] = malloc(MAX_LENGTH_ARG * sizeof(char));
+                argv[i] = malloc((MAX_LENGTH_ARG+1) * sizeof(char));
+                envp[i] = malloc((MAX_LENGTH_ARG+1) * sizeof(char));
             }
-            char** envp = malloc(MAX_ARGS * sizeof(char*));
-            for(int i = 0; i < MAX_ARGS; i++) {
-                envp[i] = malloc(MAX_LENGTH_ARG * sizeof(char));
-            }
-
 
 
             find_path(pid,true_path);
+
             find_arg(pid,argv);
             find_env(pid,envp);
 
-            report_process(pid,true_path,argv,envp);
 
-            free(true_path);
+
+
+            argv[MAX_ARGS] = NULL;
+            envp[MAX_ARGS] = NULL;
+            report_process(pid,true_path,argv,envp);
+            /*free(true_path);
             for (int i = 0; i < MAX_ARGS; i++) {
                 free(argv[i]);
                 free(envp[i]);
             }
             free(argv);
-            free(envp);
+            free(envp);*/
         }
     }
 
