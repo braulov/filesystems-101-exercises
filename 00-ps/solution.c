@@ -41,12 +41,10 @@ void find_path(pid_t pid, char* path) {
 }
 void find_arg(pid_t pid, char** argv) {
     char path[256];
-    sprintf(path,"/proc/%d/cmdline",pid);
     split(path, argv);
 }
 void find_env(pid_t pid, char** envp) {
     char path[256];
-    sprintf(path,"/proc/%d/environ",pid);
     split(path, envp);
 }
 void ps(void)
@@ -76,8 +74,6 @@ void ps(void)
             find_env(pid,envp);
 
             report_process(pid,true_path,argv,envp);
-            //printf("%s ",entry->d_name);
-            //printf("%d\n",pid);
         }
     }
 
