@@ -13,6 +13,7 @@
 void split(char* path, char** args) {
     FILE *file = fopen(path,"rb");
     if (file == NULL) {
+        free(args[0]);
         args[0] = NULL;
         report_error(path, errno);
         return;
@@ -28,7 +29,9 @@ void split(char* path, char** args) {
         current += strlen(current)+1;
         id++;
     }
-    //args[id] = NULL;
+
+    free(args[id]);
+    args[id] = NULL;
     fclose(file);
 
 }
@@ -81,15 +84,17 @@ void ps(void)
             memset(true_path,0,(MAX_LENGTH_PATH+1)*sizeof(char));
             char** argv = malloc((MAX_ARGS+1) * sizeof(char*));
             char** envp = malloc((MAX_ARGS+1) * sizeof(char*));
-            argv[MAX_ARGS] = NULL;
-            envp[MAX_ARGS] = NULL;
-            for(int i = 0; i < MAX_ARGS; i++) {
+
+            for(int i = 0; i <= MAX_ARGS; i++) {
                 argv[i] = malloc((MAX_LENGTH_ARG+1) * sizeof(char));
                 envp[i] = malloc((MAX_LENGTH_ARG+1) * sizeof(char));
                 memset(argv[i],0,(MAX_LENGTH_ARG+1)*sizeof(char));
                 memset(envp[i],0,(MAX_LENGTH_ARG+1)*sizeof(char));
             }
-
+            free(argv[MAX_ARGS]);
+            free(envp[MAX_ARGS]);
+            argv[MAX_ARGS] = NULL;
+            envp[MAX_ARGS] = NULL;
 
             find_path(pid,true_path);
 
@@ -99,7 +104,7 @@ void ps(void)
             report_process(pid,true_path,argv,envp);
 
             free(true_path);
-            for (int i = 0; i <= MAX_ARGS; i++) {
+            for (int i = 0; i < MAX_ARGS; i++) {
                 free(argv[i]);
                 free(envp[i]);
             }
