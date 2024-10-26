@@ -41,10 +41,12 @@ void find_path(pid_t pid, char* path) {
 }
 void find_arg(pid_t pid, char** argv) {
     char path[256];
+    snprintf(path, sizeof(path), "/proc/%d/cmdline", pid);
     split(path, argv);
 }
 void find_env(pid_t pid, char** envp) {
     char path[256];
+    snprintf(path, sizeof(path), "/proc/%d/environ", pid);
     split(path, envp);
 }
 void ps(void)
