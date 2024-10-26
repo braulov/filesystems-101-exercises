@@ -2,7 +2,7 @@
 .PHONY: valgrind
 
 valgrind: a.out
-	valgrind -s --leak-check=full --track-origins=yes --max-stackframe=2253008 ./a.out
+	valgrind -s --leak-check=full --track-origins=yes ./a.out
 SRC_SOLUTION := $(wildcard *.c)
 HDR_SOLUTION := $(wildcard *.h)
 

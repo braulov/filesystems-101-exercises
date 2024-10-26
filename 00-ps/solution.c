@@ -8,7 +8,7 @@
 #include <stdlib.h>
 
 #define MAX_ARGS 1500
-#define MAX_LENGTH_ARG 1400
+#define MAX_LENGTH_ARG 1500
 #define MAX_LENGTH_PATH 256
 void split(char* path, char** args) {
     FILE *file = fopen(path,"rb");
@@ -74,44 +74,48 @@ void ps(void)
     }
 
     struct dirent* entry;
+    char *true_path = malloc((MAX_LENGTH_PATH+1) * sizeof(char));
+    memset(true_path,0,(MAX_LENGTH_PATH+1)*sizeof(char));
+    char** argv = malloc((MAX_ARGS+1) * sizeof(char*));
+    char** envp = malloc((MAX_ARGS+1) * sizeof(char*));
+
+    for(int i = 0; i <= MAX_ARGS; i++) {
+        argv[i] = malloc((MAX_LENGTH_ARG+1) * sizeof(char));
+        envp[i] = malloc((MAX_LENGTH_ARG+1) * sizeof(char));
+    }
+    free(argv[MAX_ARGS]);
+    free(envp[MAX_ARGS]);
+    argv[MAX_ARGS] = NULL;
+    envp[MAX_ARGS] = NULL;
     while ((entry = readdir(dir)) != NULL) {
         if (entry->d_type == DT_DIR && strcmp(entry->d_name,".")!=0 && strcmp(entry->d_name,"..")!=0 ) {
             if (!isdigit(entry->d_name[0])) continue;
-
-            pid_t pid = atoi(entry->d_name);
-
-            char *true_path = malloc((MAX_LENGTH_PATH+1) * sizeof(char));
-            memset(true_path,0,(MAX_LENGTH_PATH+1)*sizeof(char));
-            char** argv = malloc((MAX_ARGS+1) * sizeof(char*));
-            char** envp = malloc((MAX_ARGS+1) * sizeof(char*));
-
-            for(int i = 0; i <= MAX_ARGS; i++) {
-                argv[i] = malloc((MAX_LENGTH_ARG+1) * sizeof(char));
-                envp[i] = malloc((MAX_LENGTH_ARG+1) * sizeof(char));
+            for(int i = 0;i<MAX_ARGS;i++) {
+                if (argv[i] == NULL) argv[i] = malloc((MAX_LENGTH_ARG+1) * sizeof(char));
+                if (envp[i] == NULL) envp[i] = malloc((MAX_LENGTH_ARG+1) * sizeof(char));
                 memset(argv[i],0,(MAX_LENGTH_ARG+1)*sizeof(char));
                 memset(envp[i],0,(MAX_LENGTH_ARG+1)*sizeof(char));
             }
-            free(argv[MAX_ARGS]);
-            free(envp[MAX_ARGS]);
-            argv[MAX_ARGS] = NULL;
-            envp[MAX_ARGS] = NULL;
+            for(int i = 0;i<MAX_ARGS;i++) {
+                memset(argv[i],0,(MAX_LENGTH_ARG+1)*sizeof(char));
+                memset(envp[i],0,(MAX_LENGTH_ARG+1)*sizeof(char));
+            }
+            pid_t pid = atoi(entry->d_name);
 
             find_path(pid,true_path);
-
             find_arg(pid,argv);
             find_env(pid,envp);
 
             report_process(pid,true_path,argv,envp);
-
-            free(true_path);
-            for (int i = 0; i < MAX_ARGS; i++) {
-                free(argv[i]);
-                free(envp[i]);
-            }
-            free(argv);
-            free(envp);
         }
     }
+    free(true_path);
+    for (int i = 0; i < MAX_ARGS; i++) {
+        free(argv[i]);
+        free(envp[i]);
+    }
+    free(argv);
+    free(envp);
 
     closedir(dir);
 }
