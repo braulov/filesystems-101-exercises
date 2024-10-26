@@ -28,7 +28,7 @@ void split(char* path, char** args) {
         current += strlen(current)+1;
         id++;
     }
-    args[id] = NULL;
+    //args[id] = NULL;
     fclose(file);
 
 }
