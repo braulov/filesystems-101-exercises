@@ -8,7 +8,7 @@
 #include <stdlib.h>
 
 #define MAX_ARGS 100
-#define MAX_LENGTH_ARG 200
+#define MAX_LENGTH_ARG 1000
 #define MAX_LENGTH_PATH 256
 void split(char* path, char** args, char sep) {
     FILE *file = fopen(path,"rb");
@@ -37,6 +37,7 @@ void split(char* path, char** args, char sep) {
             id++;
         }
     }
+    fclose(file);
 
 }
 void find_path(pid_t pid, char* path) {
@@ -104,13 +105,14 @@ void ps(void)
             find_env(pid,envp);
 
             report_process(pid,true_path,argv,envp);
-            /*free(true_path);
-            for (int i = 0; i < MAX_ARGS; i++) {
+
+            free(true_path);
+            for (int i = 0; i <= MAX_ARGS; i++) {
                 free(argv[i]);
                 free(envp[i]);
             }
             free(argv);
-            free(envp);*/
+            free(envp);
         }
     }
 
