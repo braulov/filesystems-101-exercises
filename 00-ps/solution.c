@@ -63,16 +63,20 @@ void ps(void)
 
             pid_t pid = atoi(entry->d_name);
 
-            char *true_path = (char*)malloc(MAX_LENGTH_PATH*sizeof(char));
-            true_path = "";
-            find_path(pid,true_path);
-
+            char *true_path = malloc(MAX_LENGTH_PATH * sizeof(char));
             char** argv = malloc(MAX_ARGS * sizeof(char*));
-            for (int i = 0; i < MAX_ARGS; i++) argv[i] = "";
-            find_arg(pid,argv);
-
+            for(int i = 0; i < MAX_ARGS; i++) {
+                argv[i] = malloc(MAX_LENGTH_ARG * sizeof(char));
+            }
             char** envp = malloc(MAX_ARGS * sizeof(char*));
-            for (int i = 0; i < MAX_ARGS; i++) envp[i] = "";
+            for(int i = 0; i < MAX_ARGS; i++) {
+                envp[i] = malloc(MAX_LENGTH_ARG * sizeof(char));
+            }
+
+
+
+            find_path(pid,true_path);
+            find_arg(pid,argv);
             find_env(pid,envp);
 
             report_process(pid,true_path,argv,envp);
@@ -80,11 +84,9 @@ void ps(void)
             free(true_path);
             for (int i = 0; i < MAX_ARGS; i++) {
                 free(argv[i]);
-            }
-            free(argv);
-            for (int i = 0; i < MAX_ARGS; i++) {
                 free(envp[i]);
             }
+            free(argv);
             free(envp);
         }
     }
