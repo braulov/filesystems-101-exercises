@@ -76,6 +76,16 @@ void ps(void)
             find_env(pid,envp);
 
             report_process(pid,true_path,argv,envp);
+
+            free(true_path);
+            for (int i = 0; i < MAX_ARGS; i++) {
+                free(argv[i]);
+            }
+            free(argv);
+            for (int i = 0; i < MAX_ARGS; i++) {
+                free(envp[i]);
+            }
+            free(envp);
         }
     }
 
