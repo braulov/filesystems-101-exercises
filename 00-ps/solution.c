@@ -10,9 +10,10 @@
 #define MAX_ARGS 100
 #define MAX_LENGTH_ARG 1000
 #define MAX_LENGTH_PATH 256
-void split(char* path, char** args, char sep) {
+void split(char* path, char** args) {
     FILE *file = fopen(path,"rb");
     if (file == NULL) {
+        args[0] = NULL;
         report_error(path, errno);
         return;
     }
@@ -20,23 +21,14 @@ void split(char* path, char** args, char sep) {
     char buffer[fileSize];
     size_t bytesRead = fread(buffer, 1, fileSize,file);
     buffer[bytesRead]='\0';
-    if (sep == '\0') {
-        int id = 0;
-        char* current = buffer;
-        while(*current != '\0') {
-            memcpy(args[id],current, strlen(current)*sizeof(char));
-            current += strlen(current)+1;
-            id++;
-        }
-    } else {
-        char* current = strtok(buffer, " ");
-        int id = 0;
-        while(current != NULL) {
-            memcpy(args[id],current, strlen(current)*sizeof(char));
-            current = strtok(NULL, " ");
-            id++;
-        }
+    int id = 0;
+    char* current = buffer;
+    while(*current != '\0') {
+        memcpy(args[id],current, strlen(current)*sizeof(char));
+        current += strlen(current)+1;
+        id++;
     }
+    args[id] = NULL;
     fclose(file);
 
 }
@@ -58,14 +50,14 @@ void find_arg(pid_t pid, char** argv) {
     char *path = malloc((MAX_LENGTH_PATH+1) * sizeof(char));
     memset(path,0,(MAX_LENGTH_PATH+1) * sizeof(char));
     snprintf(path, (MAX_LENGTH_PATH+1) * sizeof(char), "/proc/%d/cmdline", pid);
-    split(path,argv,' ');
+    split(path,argv);
     free(path);
 }
 void find_env(pid_t pid, char** envp) {
     char *path = malloc((MAX_LENGTH_PATH+1) * sizeof(char));
     memset(path,0,(MAX_LENGTH_PATH+1) * sizeof(char));
     snprintf(path, (MAX_LENGTH_PATH+1) * sizeof(char), "/proc/%d/environ", pid);
-    split(path,envp,'\0');
+    split(path,envp);
     free(path);
 }
 void ps(void)
@@ -116,6 +108,5 @@ void ps(void)
         }
     }
 
-    // Закрываем директорию
     closedir(dir);
 }
