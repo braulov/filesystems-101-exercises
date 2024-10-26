@@ -7,7 +7,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 
-#define MAX_ARGS 100
+#define MAX_ARGS 200
 #define MAX_LENGTH_ARG 1000
 #define MAX_LENGTH_PATH 256
 void split(char* path, char** args) {
