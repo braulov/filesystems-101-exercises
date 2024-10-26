@@ -7,8 +7,8 @@
 #include <ctype.h>
 #include <stdlib.h>
 
-#define MAX_ARGS 1100
-#define MAX_LENGTH_ARG 1900
+#define MAX_ARGS 1050
+#define MAX_LENGTH_ARG 2000
 #define MAX_LENGTH_PATH 256
 void split(char* path, char** args) {
     FILE *file = fopen(path,"rb");
@@ -50,18 +50,18 @@ void find_path(pid_t pid, char* path) {
     }
 }
 void find_arg(pid_t pid, char** argv) {
-    char *path = malloc((MAX_LENGTH_PATH+1) * sizeof(char));
+    char path[MAX_LENGTH_PATH+1];
     memset(path,0,(MAX_LENGTH_PATH+1) * sizeof(char));
     snprintf(path, (MAX_LENGTH_PATH+1) * sizeof(char), "/proc/%d/cmdline", pid);
     split(path,argv);
-    free(path);
+    //free(path);
 }
 void find_env(pid_t pid, char** envp) {
-    char *path = malloc((MAX_LENGTH_PATH+1) * sizeof(char));
+    char path[MAX_LENGTH_PATH+1];
     memset(path,0,(MAX_LENGTH_PATH+1) * sizeof(char));
     snprintf(path, (MAX_LENGTH_PATH+1) * sizeof(char), "/proc/%d/environ", pid);
     split(path,envp);
-    free(path);
+    //free(path);
 }
 void ps(void)
 {
