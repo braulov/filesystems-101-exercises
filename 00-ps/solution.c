@@ -16,15 +16,12 @@ void split(char* path, char** args) {
         report_error(path, errno);
         return;
     }
-    char *buffer;
 
     long fileSize = MAX_LENGTH_ARG*MAX_ARGS;
-
-    buffer = malloc(fileSize+1);
+    char buffer[fileSize+1];
     size_t bytesRead = fread(buffer, 1, fileSize,file);
     buffer[bytesRead]='\0';
     fclose(file);
-
     char* currentArg = buffer;
     int id = 0;
     while(*currentArg != '\0' && id < MAX_ARGS) {
