@@ -64,12 +64,15 @@ void ps(void)
             pid_t pid = atoi(entry->d_name);
 
             char *true_path = (char*)malloc(MAX_LENGTH_PATH*sizeof(char));
+            true_path = "";
             find_path(pid,true_path);
 
             char** argv = malloc(MAX_ARGS * sizeof(char*));
+            for (int i = 0; i < MAX_ARGS; i++) argv[i] = "";
             find_arg(pid,argv);
 
             char** envp = malloc(MAX_ARGS * sizeof(char*));
+            for (int i = 0; i < MAX_ARGS; i++) envp[i] = "";
             find_env(pid,envp);
 
             report_process(pid,true_path,argv,envp);
