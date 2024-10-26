@@ -24,9 +24,9 @@ void split(char* path, char** args, char sep) {
         int id = 0;
         char* current = buffer;
         while(*current != '\0') {
-
             memcpy(args[id],current, strlen(current)*sizeof(char));
             current += strlen(current)+1;
+            id++;
         }
     } else {
         char* current = strtok(buffer, " ");
