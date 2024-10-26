@@ -1,9 +1,6 @@
 #pragma once
 #include <unistd.h>
 
-#define MAX_ARGS 64
-#define MAX_LENGTH_ARG 100
-#define MAX_LENGTH_PATH 256
 void find_path(pid_t pid, char* path);
 void find_arg(pid_t pid, char** argv);
 void find_env(pid_t pid, char** envp);

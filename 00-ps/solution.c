@@ -7,31 +7,41 @@
 #include <ctype.h>
 #include <stdlib.h>
 
-#define MAX_ARGS 64
-#define MAX_LENGTH_ARG 100
+#define MAX_ARGS 100
+#define MAX_LENGTH_ARG 200
 #define MAX_LENGTH_PATH 256
-void split(char* path, char** args) {
+void split(char* path, char** args, char sep) {
     FILE *file = fopen(path,"rb");
     if (file == NULL) {
         report_error(path, errno);
         return;
     }
-
     long fileSize = (MAX_LENGTH_ARG+1)*(MAX_ARGS+1);
-    char* buffer = malloc(fileSize * sizeof(char));
+    char buffer[fileSize];
     size_t bytesRead = fread(buffer, 1, fileSize,file);
     buffer[bytesRead]='\0';
-    char* current = buffer;
-    fclose(file);
-    int id = 0;
-    while(id < MAX_ARGS) {
-        args[id] = current;
-        id++;
-        current += strlen(current) + 1;
+    if (sep == '\0') {
+        int id = 0;
+        char* current = buffer;
+        while(*current != '\0') {
+
+            memcpy(args[id],current, strlen(current)*sizeof(char));
+            current += strlen(current)+1;
+        }
+    } else {
+        char* current = strtok(buffer, " ");
+        int id = 0;
+        while(current != NULL) {
+            memcpy(args[id],current, strlen(current)*sizeof(char));
+            current = strtok(NULL, " ");
+            id++;
+        }
     }
+
 }
 void find_path(pid_t pid, char* path) {
     char *path_to_exe = malloc((MAX_LENGTH_PATH+1) * sizeof(char));
+    memset(path_to_exe,0,(MAX_LENGTH_PATH+1) * sizeof(char));
     snprintf(path_to_exe, (MAX_LENGTH_PATH+1) * sizeof(char), "/proc/%d/exe", pid);
     if (readlink(path_to_exe,path,256)!=-1) {
         free(path_to_exe);
@@ -45,14 +55,16 @@ void find_path(pid_t pid, char* path) {
 }
 void find_arg(pid_t pid, char** argv) {
     char *path = malloc((MAX_LENGTH_PATH+1) * sizeof(char));
+    memset(path,0,(MAX_LENGTH_PATH+1) * sizeof(char));
     snprintf(path, (MAX_LENGTH_PATH+1) * sizeof(char), "/proc/%d/cmdline", pid);
-    split(path, argv);
+    split(path,argv,' ');
     free(path);
 }
 void find_env(pid_t pid, char** envp) {
     char *path = malloc((MAX_LENGTH_PATH+1) * sizeof(char));
+    memset(path,0,(MAX_LENGTH_PATH+1) * sizeof(char));
     snprintf(path, (MAX_LENGTH_PATH+1) * sizeof(char), "/proc/%d/environ", pid);
-    split(path, envp);
+    split(path,envp,'\0');
     free(path);
 }
 void ps(void)
@@ -76,6 +88,8 @@ void ps(void)
             memset(true_path,0,(MAX_LENGTH_PATH+1)*sizeof(char));
             char** argv = malloc((MAX_ARGS+1) * sizeof(char*));
             char** envp = malloc((MAX_ARGS+1) * sizeof(char*));
+            argv[MAX_ARGS] = NULL;
+            envp[MAX_ARGS] = NULL;
             for(int i = 0; i < MAX_ARGS; i++) {
                 argv[i] = malloc((MAX_LENGTH_ARG+1) * sizeof(char));
                 envp[i] = malloc((MAX_LENGTH_ARG+1) * sizeof(char));
@@ -89,11 +103,6 @@ void ps(void)
             find_arg(pid,argv);
             find_env(pid,envp);
 
-
-
-
-            argv[MAX_ARGS] = NULL;
-            envp[MAX_ARGS] = NULL;
             report_process(pid,true_path,argv,envp);
             /*free(true_path);
             for (int i = 0; i < MAX_ARGS; i++) {
