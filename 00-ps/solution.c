@@ -1,4 +1,15 @@
 #include <solution.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <errno.h>
+#include <string.h>
+#include <stdio.h>
+#include <ctype.h>
+#include <stdlib.h>
+
+#define MAX_ARGS 64
+#define MAX_LENGTH_ARG 100
+#define MAX_LENGTH_PATH 256
 void split(char* path, char** args) {
     FILE *file = fopen(path,"rb");
     if (file == NULL) {

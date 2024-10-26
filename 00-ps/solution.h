@@ -1,12 +1,5 @@
 #pragma once
-
 #include <unistd.h>
-#include <dirent.h>
-#include <errno.h>
-#include <string.h>
-#include <stdio.h>
-#include <ctype.h>
-#include <stdlib.h>
 
 #define MAX_ARGS 64
 #define MAX_LENGTH_ARG 100
