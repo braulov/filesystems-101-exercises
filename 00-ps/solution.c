@@ -34,8 +34,8 @@ void split(char* path, char** args) {
     }
 }
 void find_path(pid_t pid, char* path) {
-    char *path_to_exe = (char*)malloc(256*sizeof(char));
-    sprintf(path_to_exe, "/proc/%d/exe", pid);
+    char path_to_exe[256];
+    snprintf(path_to_exe, sizeof(path_to_exe), "/proc/%d/exe", pid);
     if (readlink(path_to_exe,path,256)!=-1) return;
     else report_error(path_to_exe, errno);
 }
