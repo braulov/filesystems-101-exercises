@@ -7,13 +7,13 @@
 #include <ctype.h>
 #include <stdlib.h>
 
-#define MAX_ARGS 1070
-#define MAX_LENGTH_ARG 1800
+#define MAX_ARGS 1100
+#define MAX_LENGTH_ARG 2000
 #define MAX_LENGTH_PATH 256
 void split(char* path, char** args) {
     FILE *file = fopen(path,"rb");
     if (file == NULL) {
-        free(args[0]);
+        //free(args[0]);
         args[0] = NULL;
         report_error(path, errno);
         return;
@@ -29,8 +29,6 @@ void split(char* path, char** args) {
         current += strlen(current)+1;
         id++;
     }
-
-    free(args[id]);
     args[id] = NULL;
     fclose(file);
 
@@ -71,12 +69,16 @@ void ps(void)
 
     struct dirent* entry;
     char true_path[MAX_LENGTH_PATH+1];
+    char data_arg[MAX_ARGS+1][MAX_LENGTH_ARG+1];
+    char data_envp[MAX_ARGS+1][MAX_LENGTH_ARG+1];
     char** argv = malloc((MAX_ARGS+1) * sizeof(char*));
     char** envp = malloc((MAX_ARGS+1) * sizeof(char*));
 
     for(int i = 0; i < MAX_ARGS; i++) {
-        argv[i] = malloc((MAX_LENGTH_ARG+1) );
-        envp[i] = malloc((MAX_LENGTH_ARG+1) );
+        argv[i] = data_arg[i];
+        //argv[i] = malloc((MAX_LENGTH_ARG+1) );
+        //envp[i] = malloc((MAX_LENGTH_ARG+1) );
+        envp[i] = data_envp[i];
     }
     //free(argv[MAX_ARGS]);
     //free(envp[MAX_ARGS]);
@@ -87,8 +89,10 @@ void ps(void)
             if (!isdigit(entry->d_name[0])) continue;
             memset(true_path,0,MAX_LENGTH_PATH+1);
             for(int i = 0;i<MAX_ARGS;i++) {
-                if (argv[i] == NULL) argv[i] = malloc((MAX_LENGTH_ARG+1));
-                if (envp[i] == NULL) envp[i] = malloc((MAX_LENGTH_ARG+1));
+                //if (argv[i] == NULL) argv[i] = malloc((MAX_LENGTH_ARG+1));
+                //if (envp[i] == NULL) envp[i] = malloc((MAX_LENGTH_ARG+1));
+                if (argv[i] == NULL) argv[i] = data_arg[i];
+                if (envp[i] == NULL) envp[i] = data_envp[i];
                 memset(argv[i],0,(MAX_LENGTH_ARG+1));
                 memset(envp[i],0,(MAX_LENGTH_ARG+1));
             }
@@ -105,10 +109,10 @@ void ps(void)
             report_process(pid,(const char *)true_path,argv,envp);
         }
     }
-    for (int i = 0; i < MAX_ARGS; i++) {
-        free(argv[i]);
+    /*for (int i = 0; i < MAX_ARGS; i++) {
+        //free(argv[i]);
         free(envp[i]);
-    }
+    }*/
     free(argv);
     free(envp);
 
