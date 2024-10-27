@@ -5,7 +5,8 @@ HDR_SOLUTION := $(wildcard *.h)
 
 SRC_STDLIB := $(wildcard ../stdlib/*.c)
 HDR_STDLIB := $(wildcard ../stdlib/*.h)
-
+valgrind: a.out
+	valgrind -s --leak-check=full --track-origins=yes ./a.out
 test: build
 	./a.out
 
