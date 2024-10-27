@@ -1,5 +1,6 @@
 #include <solution.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <dirent.h>
 #include <errno.h>
 #include <string.h>
@@ -10,17 +11,15 @@
 #define MAX_ARGS 1100
 #define MAX_LENGTH_ARG 1900
 #define MAX_LENGTH_PATH 256
-void split(char* path, char** args) {
-    FILE *file = fopen(path,"rb");
-    if (file == NULL) {
-        //free(args[0]);
+static void split(char* path, char** args) {
+    int fd = open(path,O_RDONLY);
+    if (fd == -1) {
         args[0] = NULL;
         report_error(path, errno);
         return;
     }
-    long fileSize = (MAX_LENGTH_ARG+1)*(MAX_ARGS+1);
-    char buffer[fileSize];
-    size_t bytesRead = fread(buffer, 1, fileSize,file);
+    static char buffer[(MAX_LENGTH_ARG+1)*(MAX_ARGS+1)];
+    size_t bytesRead = read(fd, buffer, (MAX_LENGTH_ARG+1)*(MAX_ARGS+1));
     buffer[bytesRead]='\0';
     int id = 0;
     char* current = buffer;
@@ -30,7 +29,7 @@ void split(char* path, char** args) {
         id++;
     }
     args[id] = NULL;
-    fclose(file);
+    close(fd);
 
 }
 void find_path(pid_t pid, char* path) {
@@ -68,9 +67,9 @@ void ps(void)
     }
 
     struct dirent* entry;
-    char true_path[MAX_LENGTH_PATH+1];
-    char data_arg[MAX_ARGS+1][MAX_LENGTH_ARG+1];
-    char data_envp[MAX_ARGS+1][MAX_LENGTH_ARG+1];
+    static char true_path[MAX_LENGTH_PATH+1];
+    static char data_arg[MAX_ARGS+1][MAX_LENGTH_ARG+1];
+    static char data_envp[MAX_ARGS+1][MAX_LENGTH_ARG+1];
     char** argv = malloc((MAX_ARGS+1) * sizeof(char*));
     char** envp = malloc((MAX_ARGS+1) * sizeof(char*));
 
