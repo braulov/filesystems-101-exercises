@@ -7,16 +7,15 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <ftw.h>
+#include <stdbool.h>
+#define MAX_LENGTH_PATH 1000
 
-#define MAX_ARGS 1100
-#define MAX_LENGTH_ARG 1900
-#define MAX_LENGTH_PATH 256
 static void find_files(pid_t pid, char* abs_path) {
     static char path_to_dir[MAX_LENGTH_PATH+1];
     static char path_to_file[MAX_LENGTH_PATH+1];
-
-    memset(path_to_dir,0,MAX_LENGTH_PATH+1);
     memset(path_to_file,0,MAX_LENGTH_PATH+1);
+    memset(path_to_dir,0,MAX_LENGTH_PATH+1);
     memset(abs_path,0,MAX_LENGTH_PATH+1);
 
     snprintf(path_to_dir, (MAX_LENGTH_PATH+1), "/proc/%d/fd", pid);
@@ -30,14 +29,18 @@ static void find_files(pid_t pid, char* abs_path) {
         memset(path_to_file,0,MAX_LENGTH_PATH+1);
         memset(abs_path,0,MAX_LENGTH_PATH+1);
         pid_t file_id = atoi(entry->d_name);
+
         snprintf(path_to_file, (MAX_LENGTH_PATH+1), "/proc/%d/fd/%d", pid, file_id);
 
         if (readlink(path_to_file,abs_path,MAX_LENGTH_PATH+1)==-1) {
             report_error(path_to_file, errno);
         }
-        else report_file((const char *)abs_path);
+        else {
+            report_file(abs_path);
+        }
     }
     closedir(dir);
+
 }
 void lsof(void)
 {
@@ -51,10 +54,10 @@ void lsof(void)
     }
     struct dirent* entry;
     char* abs_path = malloc(MAX_LENGTH_PATH+1);
+
     while ((entry = readdir(dir)) != NULL) {
         if (entry->d_type == DT_DIR && strcmp(entry->d_name,".")!=0 && strcmp(entry->d_name,"..")!=0 ) {
             if (!isdigit(entry->d_name[0])) continue;
-
             pid_t pid = atoi(entry->d_name);
             find_files(pid, abs_path);
         }
