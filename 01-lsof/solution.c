@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <ftw.h>
 #include <stdbool.h>
-#define MAX_LENGTH_PATH 1000
+#define MAX_LENGTH_PATH 10000
 
 static void find_files(pid_t pid, char* abs_path) {
     static char path_to_dir[MAX_LENGTH_PATH+1];
