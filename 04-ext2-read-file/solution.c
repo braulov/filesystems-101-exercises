@@ -1,222 +1,131 @@
-#include "solution.h"
+#include <solution.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <errno.h>
+#include <sys/types.h>
 #include <fs_malloc.h>
-#include <ext2fs/ext2_fs.h>
 #include <ext2fs/ext2fs.h>
+#include <ext2fs/ext2_fs.h>
+#include <errno.h>
+#include <unistd.h>
 
-struct ext2_fs {
-    int file_descriptor;
-    int blk_size;
-    struct ext2_super_block super_block;
-};
-
-struct ext2_blkiter {
-    struct ext2_fs *filesystem;
-    int inode_table_offset;
-
-    struct ext2_inode current_inode;
-    int iterator_position;
-
-    int *indirect_blk_buffer;
-    int *double_indirect_blk_buffer;
-    int active_indirect_block;
-};
-
-int ext2_fs_init(struct ext2_fs **fs, int fd) {
-    struct ext2_fs *temp_fs = fs_xmalloc(sizeof(struct ext2_fs));
-    temp_fs->file_descriptor = fd;
-
-    ssize_t read_result = pread(temp_fs->file_descriptor, &temp_fs->super_block, SUPERBLOCK_SIZE, SUPERBLOCK_OFFSET);
-    if (read_result == -1) {
-        fs_xfree(temp_fs);
+int read_block(int img, void* buffer, int* left_to_copy, int block_size, int block, int out) {
+    if (pread(img, buffer, block_size, block_size * block) < block_size) {
         return -errno;
     }
 
-    temp_fs->blk_size = EXT2_BLOCK_SIZE(&temp_fs->super_block);
-    *fs = temp_fs;
+    int size_to_write = (block_size < *left_to_copy) ? block_size : *left_to_copy;
+    if (write(out, buffer, size_to_write) < size_to_write) {
+        return -errno;
+    }
 
+    *left_to_copy -= size_to_write;
     return 0;
 }
 
-void ext2_fs_free(struct ext2_fs *fs) {
-    fs_xfree(fs);
-}
+int dump_file(int img, int inode_nr, int out) {
+    struct ext2_super_block super_block;
+    if (pread(img, &super_block, SUPERBLOCK_SIZE, SUPERBLOCK_OFFSET) < 0) {
+        return -errno;
+    }
 
-int ext2_blkiter_init(struct ext2_blkiter **iter, struct ext2_fs *fs, int inode_number) {
-    size_t descs_per_block = fs->blk_size / sizeof(struct ext2_group_desc);
-    size_t inode_group_idx = (inode_number - 1) / fs->super_block.s_inodes_per_group;
-    size_t inode_idx_in_group = (inode_number - 1) % fs->super_block.s_inodes_per_group;
-    size_t group_desc_offset = fs->blk_size * (fs->super_block.s_first_data_block + 1 + (inode_group_idx / descs_per_block));
-    size_t group_desc_within_block = (inode_group_idx % descs_per_block) * sizeof(struct ext2_group_desc);
+    int group_id = (inode_nr - 1) / super_block.s_inodes_per_group;
+    int inode_id = (inode_nr - 1) % super_block.s_inodes_per_group;
+    int block_size = EXT2_BLOCK_SIZE(&super_block);
 
     struct ext2_group_desc group_desc;
-    ssize_t read_group = pread(fs->file_descriptor, &group_desc, sizeof(group_desc), group_desc_offset + group_desc_within_block);
-    if (read_group == -1) {
+    if (pread(img, &group_desc, sizeof(group_desc), block_size * (super_block.s_first_data_block + 1) + sizeof(group_desc) * group_id) < 0) {
         return -errno;
     }
 
-    struct ext2_blkiter *temp_iter = fs_xmalloc(sizeof(struct ext2_blkiter));
-    temp_iter->inode_table_offset = group_desc.bg_inode_table;
-
-    ssize_t read_inode_data = pread(fs->file_descriptor, &temp_iter->current_inode, sizeof(struct ext2_inode),
-                                    fs->blk_size * temp_iter->inode_table_offset + inode_idx_in_group * fs->super_block.s_inode_size);
-    if (read_inode_data == -1) {
-        fs_xfree(temp_iter);
+    struct ext2_inode inode;
+    if (pread(img, &inode, sizeof(inode), block_size * group_desc.bg_inode_table + super_block.s_inode_size * inode_id) < 0) {
         return -errno;
     }
 
-    temp_iter->iterator_position = 0;
-    temp_iter->filesystem = fs;
+    int left_to_copy = inode.i_size;
+    void* direct_block = fs_xmalloc(block_size);
+    void* indirect_block = NULL;
+    void* double_indirect_block = NULL;
+    int i = 0;
+    int read_block_result = 0;
 
-    temp_iter->indirect_blk_buffer = NULL;
-    temp_iter->double_indirect_blk_buffer = NULL;
-    temp_iter->active_indirect_block = -1;
+    while (i < EXT2_N_BLOCKS && left_to_copy > 0 && inode.i_block[i] != 0) {
+        if (i < EXT2_NDIR_BLOCKS) {
+            read_block_result = read_block(img, direct_block, &left_to_copy, block_size, inode.i_block[i], out);
+            if (read_block_result < 0) {
+                free(direct_block);
+                return read_block_result;
+            }
+        }
 
-    *iter = temp_iter;
+        if (i == EXT2_IND_BLOCK && inode.i_block[i] != 0) {
+            if (pread(img, direct_block, block_size, block_size * inode.i_block[i]) < block_size) {
+                free(direct_block);
+                return -errno;
+            }
+            if (!indirect_block) {
+                indirect_block = fs_xmalloc(block_size);
+            }
+
+            int k = 0;
+            while (k < (block_size / (int)sizeof(int)) && left_to_copy > 0 && ((int*)direct_block)[k] != 0) {
+                read_block_result = read_block(img, indirect_block, &left_to_copy, block_size, ((int*)direct_block)[k], out);
+                if (read_block_result < 0) {
+                    free(direct_block);
+                    free(indirect_block);
+                    return read_block_result;
+                }
+                k++;
+            }
+        }
+
+        if (i == EXT2_DIND_BLOCK) {
+            if (pread(img, direct_block, block_size, block_size * inode.i_block[i]) < block_size) {
+                free(direct_block);
+                free(indirect_block);
+                return -errno;
+            }
+            if (!indirect_block) {
+                indirect_block = fs_xmalloc(block_size);
+            }
+
+            int k = 0;
+            while (k < (block_size / (int)sizeof(int)) && left_to_copy > 0 && ((int*)direct_block)[k] != 0) {
+                if (pread(img, indirect_block, block_size, block_size * ((int*)direct_block)[k]) < block_size) {
+                    free(direct_block);
+                    free(indirect_block);
+                    free(double_indirect_block);
+                    return -errno;
+                }
+
+                if (!double_indirect_block) {
+                    double_indirect_block = fs_xmalloc(block_size);
+                }
+
+                int n = 0;
+                while (n < (block_size / (int)sizeof(int)) && left_to_copy > 0 && ((int*)indirect_block)[n] != 0) {
+                    read_block_result = read_block(img, double_indirect_block, &left_to_copy, block_size, ((int*)indirect_block)[n], out);
+                    if (read_block_result < 0) {
+                        free(direct_block);
+                        free(indirect_block);
+                        free(double_indirect_block);
+                        return read_block_result;
+                    }
+                    n++;
+                }
+                k++;
+            }
+        }
+        i++;
+    }
+
+    free(direct_block);
+    if (indirect_block) {
+        free(indirect_block);
+    }
+    if (double_indirect_block) {
+        free(double_indirect_block);
+    }
 
     return 0;
-}
-
-int ext2_blkiter_next(struct ext2_blkiter *iter, int *block_number) {
-    int block_pointers_per_block = iter->filesystem->blk_size / sizeof(int);
-
-    int direct_blocks_end = EXT2_NDIR_BLOCKS;
-    int single_indirect_start = direct_blocks_end;
-    int single_indirect_end = single_indirect_start + block_pointers_per_block;
-    int double_indirect_start = single_indirect_end;
-    int double_indirect_end = double_indirect_start + block_pointers_per_block * block_pointers_per_block;
-
-    if (iter->iterator_position < direct_blocks_end) {
-        int blk_ptr = iter->current_inode.i_block[iter->iterator_position];
-        if (blk_ptr == 0) {
-            return 0;
-        }
-
-        *block_number = blk_ptr;
-        iter->iterator_position++;
-        return 1;
-    }
-
-    if (iter->iterator_position < single_indirect_end) {
-        if (!iter->indirect_blk_buffer) {
-            iter->indirect_blk_buffer = fs_xmalloc(iter->filesystem->blk_size);
-            ssize_t result = pread(iter->filesystem->file_descriptor, iter->indirect_blk_buffer, iter->filesystem->blk_size,
-                                   iter->current_inode.i_block[EXT2_IND_BLOCK] * iter->filesystem->blk_size);
-            if (result == -1) {
-                return -errno;
-            }
-        }
-
-        int indirect_idx = iter->iterator_position - single_indirect_start;
-        if (iter->indirect_blk_buffer[indirect_idx] == 0) {
-            return 0;
-        }
-
-        *block_number = iter->indirect_blk_buffer[indirect_idx];
-        iter->iterator_position++;
-        return 1;
-    }
-
-    if (iter->iterator_position < double_indirect_end) {
-        if (!iter->double_indirect_blk_buffer) {
-            iter->double_indirect_blk_buffer = fs_xmalloc(iter->filesystem->blk_size);
-            ssize_t result = pread(iter->filesystem->file_descriptor, iter->double_indirect_blk_buffer,
-                                   iter->filesystem->blk_size,
-                                   iter->current_inode.i_block[EXT2_DIND_BLOCK] * iter->filesystem->blk_size);
-            if (result == -1) {
-                return -errno;
-            }
-        }
-
-        int outer_idx = (iter->iterator_position - double_indirect_start) / block_pointers_per_block;
-        int inner_idx = (iter->iterator_position - double_indirect_start) % block_pointers_per_block;
-
-        if (iter->active_indirect_block != iter->double_indirect_blk_buffer[outer_idx]) {
-            iter->active_indirect_block = iter->double_indirect_blk_buffer[outer_idx];
-            if (pread(iter->filesystem->file_descriptor, iter->indirect_blk_buffer, iter->filesystem->blk_size,
-                      iter->active_indirect_block * iter->filesystem->blk_size) == -1) {
-                return -errno;
-            }
-        }
-
-        if (iter->indirect_blk_buffer[inner_idx] == 0) {
-            return 0;
-        }
-
-        *block_number = iter->indirect_blk_buffer[inner_idx];
-        iter->iterator_position++;
-        return 1;
-    }
-
-    return 0;
-}
-
-void ext2_blkiter_free(struct ext2_blkiter *iter) {
-    if (iter) {
-        fs_xfree(iter->indirect_blk_buffer);
-        fs_xfree(iter->double_indirect_blk_buffer);
-        fs_xfree(iter);
-    }
-}
-
-/**
- * Function to copy the content of an inode @inode_nr to a file descriptor @out.
- * @param img File descriptor of the ext2 image.
- * @param inode_nr The inode number to read.
- * @param out File descriptor where the data will be written.
- * @return 0 if successful, or -errno if an error occurs.
- */
-int dump_file(int img, int inode_nr, int out) {
-    struct ext2_fs *fs = NULL;
-    struct ext2_blkiter *blk_iter = NULL;
-    int ret = 0;
-    int block_number;
-
-
-    if ((ret = ext2_fs_init(&fs, img)) != 0) {
-        return ret;
-    }
-
-
-    if ((ret = ext2_blkiter_init(&blk_iter, fs, inode_nr)) != 0) {
-        ext2_fs_free(fs);
-        return ret;
-    }
-
-    char *block_buffer = fs_xmalloc(fs->blk_size);
-
-    while ((ret = ext2_blkiter_next(blk_iter, &block_number)) > 0) {
-        ssize_t bytes_read = pread(img, block_buffer, fs->blk_size, block_number * fs->blk_size);
-        if (bytes_read == -1) {
-            ret = -errno;
-            break;
-        }
-
-
-        ssize_t bytes_written = write(out, block_buffer, bytes_read);
-        if (bytes_written == -1) {
-            ret = -errno;
-            break;
-        }
-
-        if (bytes_written < bytes_read) {
-            ret = -EIO;
-            break;
-        }
-    }
-
-    if (ret == 0) {
-        ret = 0;
-    } else if (ret > 0) {
-        ret = 0;
-    }
-
-
-    fs_xfree(block_buffer);
-    ext2_blkiter_free(blk_iter);
-    ext2_fs_free(fs);
-
-    return ret;
 }
