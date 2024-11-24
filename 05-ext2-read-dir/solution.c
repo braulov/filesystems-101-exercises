@@ -52,7 +52,7 @@ int fetch_block(int img, int* buffer, int* remaining_bytes, int block_size, int 
     return 0;
 }
 
-int list_directory(int img, int inode_number) {
+int dump_dir(int img, int inode_number) {
     struct ext2_super_block sb;
     int superblock_status = pread(img, &sb, SUPERBLOCK_SIZE, SUPERBLOCK_OFFSET);
     if (superblock_status < 0) {
