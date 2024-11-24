@@ -8,120 +8,120 @@
 #include <errno.h>
 #include <unistd.h>
 
-int read_block(int img, void* buffer, int* left_to_copy, int block_size, int block, int out) {
-    if (pread(img, buffer, block_size, block_size * block) < block_size) {
+int process_block(int disk, void* temp_buf, int* bytes_remaining, int blk_sz, int blk_num, int output) {
+    if (pread(disk, temp_buf, blk_sz, blk_sz * blk_num) < blk_sz) {
         return -errno;
     }
 
-    int size_to_write = (block_size < *left_to_copy) ? block_size : *left_to_copy;
-    if (write(out, buffer, size_to_write) < size_to_write) {
+    int bytes_to_copy = (*bytes_remaining < blk_sz) ? *bytes_remaining : blk_sz;
+    if (write(output, temp_buf, bytes_to_copy) < bytes_to_copy) {
         return -errno;
     }
 
-    *left_to_copy -= size_to_write;
+    *bytes_remaining -= bytes_to_copy;
     return 0;
 }
 
-int dump_file(int img, int inode_nr, int out) {
-    struct ext2_super_block super_block;
-    if (pread(img, &super_block, SUPERBLOCK_SIZE, SUPERBLOCK_OFFSET) < 0) {
+int dump_file(int disk, int node_index, int output) {
+    struct ext2_super_block sb;
+    if (pread(disk, &sb, SUPERBLOCK_SIZE, SUPERBLOCK_OFFSET) < 0) {
         return -errno;
     }
 
-    int group_id = (inode_nr - 1) / super_block.s_inodes_per_group;
-    int inode_id = (inode_nr - 1) % super_block.s_inodes_per_group;
-    int block_size = EXT2_BLOCK_SIZE(&super_block);
+    int grp_index = (node_index - 1) / sb.s_inodes_per_group;
+    int node_offset = (node_index - 1) % sb.s_inodes_per_group;
+    int blk_sz = EXT2_BLOCK_SIZE(&sb);
 
-    struct ext2_group_desc group_desc;
-    if (pread(img, &group_desc, sizeof(group_desc), block_size * (super_block.s_first_data_block + 1) + sizeof(group_desc) * group_id) < 0) {
+    struct ext2_group_desc grp_desc;
+    if (pread(disk, &grp_desc, sizeof(grp_desc), blk_sz * (sb.s_first_data_block + 1) + sizeof(grp_desc) * grp_index) < 0) {
         return -errno;
     }
 
-    struct ext2_inode inode;
-    if (pread(img, &inode, sizeof(inode), block_size * group_desc.bg_inode_table + super_block.s_inode_size * inode_id) < 0) {
+    struct ext2_inode inode_data;
+    if (pread(disk, &inode_data, sizeof(inode_data), blk_sz * grp_desc.bg_inode_table + sb.s_inode_size * node_offset) < 0) {
         return -errno;
     }
 
-    int left_to_copy = inode.i_size;
-    void* direct_block = fs_xmalloc(block_size);
-    void* indirect_block = NULL;
+    int bytes_left = inode_data.i_size;
+    void* primary_block = fs_xmalloc(blk_sz);
+    void* single_indirect_block = NULL;
     void* double_indirect_block = NULL;
-    int i = 0;
-    int read_block_result = 0;
+    int block_iter = 0;
+    int process_res = 0;
 
-    while (i < EXT2_N_BLOCKS && left_to_copy > 0 && inode.i_block[i] != 0) {
-        if (i < EXT2_NDIR_BLOCKS) {
-            read_block_result = read_block(img, direct_block, &left_to_copy, block_size, inode.i_block[i], out);
-            if (read_block_result < 0) {
-                free(direct_block);
-                return read_block_result;
+    while (block_iter < EXT2_N_BLOCKS && bytes_left > 0 && inode_data.i_block[block_iter] != 0) {
+        if (block_iter < EXT2_NDIR_BLOCKS) {
+            process_res = process_block(disk, primary_block, &bytes_left, blk_sz, inode_data.i_block[block_iter], output);
+            if (process_res < 0) {
+                free(primary_block);
+                return process_res;
             }
         }
 
-        if (i == EXT2_IND_BLOCK && inode.i_block[i] != 0) {
-            if (pread(img, direct_block, block_size, block_size * inode.i_block[i]) < block_size) {
-                free(direct_block);
+        if (block_iter == EXT2_IND_BLOCK && inode_data.i_block[block_iter] != 0) {
+            if (pread(disk, primary_block, blk_sz, blk_sz * inode_data.i_block[block_iter]) < blk_sz) {
+                free(primary_block);
                 return -errno;
             }
-            if (!indirect_block) {
-                indirect_block = fs_xmalloc(block_size);
+            if (!single_indirect_block) {
+                single_indirect_block = fs_xmalloc(blk_sz);
             }
 
-            int k = 0;
-            while (k < (block_size / (int)sizeof(int)) && left_to_copy > 0 && ((int*)direct_block)[k] != 0) {
-                read_block_result = read_block(img, indirect_block, &left_to_copy, block_size, ((int*)direct_block)[k], out);
-                if (read_block_result < 0) {
-                    free(direct_block);
-                    free(indirect_block);
-                    return read_block_result;
+            size_t sub_index = 0;
+            while (sub_index < (blk_sz / sizeof(int)) && bytes_left > 0 && ((int*)primary_block)[sub_index] != 0) {
+                process_res = process_block(disk, single_indirect_block, &bytes_left, blk_sz, ((int*)primary_block)[sub_index], output);
+                if (process_res < 0) {
+                    free(primary_block);
+                    free(single_indirect_block);
+                    return process_res;
                 }
-                k++;
+                sub_index++;
             }
         }
 
-        if (i == EXT2_DIND_BLOCK) {
-            if (pread(img, direct_block, block_size, block_size * inode.i_block[i]) < block_size) {
-                free(direct_block);
-                free(indirect_block);
+        if (block_iter == EXT2_DIND_BLOCK) {
+            if (pread(disk, primary_block, blk_sz, blk_sz * inode_data.i_block[block_iter]) < blk_sz) {
+                free(primary_block);
+                free(single_indirect_block);
                 return -errno;
             }
-            if (!indirect_block) {
-                indirect_block = fs_xmalloc(block_size);
+            if (!single_indirect_block) {
+                single_indirect_block = fs_xmalloc(blk_sz);
             }
 
-            int k = 0;
-            while (k < (block_size / (int)sizeof(int)) && left_to_copy > 0 && ((int*)direct_block)[k] != 0) {
-                if (pread(img, indirect_block, block_size, block_size * ((int*)direct_block)[k]) < block_size) {
-                    free(direct_block);
-                    free(indirect_block);
+            size_t single_idx = 0;
+            while (single_idx < (blk_sz / sizeof(int)) && bytes_left > 0 && ((int*)primary_block)[single_idx] != 0) {
+                if (pread(disk, single_indirect_block, blk_sz, blk_sz * ((int*)primary_block)[single_idx]) < blk_sz) {
+                    free(primary_block);
+                    free(single_indirect_block);
                     free(double_indirect_block);
                     return -errno;
                 }
 
                 if (!double_indirect_block) {
-                    double_indirect_block = fs_xmalloc(block_size);
+                    double_indirect_block = fs_xmalloc(blk_sz);
                 }
 
-                int n = 0;
-                while (n < (block_size / (int)sizeof(int)) && left_to_copy > 0 && ((int*)indirect_block)[n] != 0) {
-                    read_block_result = read_block(img, double_indirect_block, &left_to_copy, block_size, ((int*)indirect_block)[n], out);
-                    if (read_block_result < 0) {
-                        free(direct_block);
-                        free(indirect_block);
+                size_t double_idx = 0;
+                while (double_idx < (blk_sz / sizeof(int)) && bytes_left > 0 && ((int*)single_indirect_block)[double_idx] != 0) {
+                    process_res = process_block(disk, double_indirect_block, &bytes_left, blk_sz, ((int*)single_indirect_block)[double_idx], output);
+                    if (process_res < 0) {
+                        free(primary_block);
+                        free(single_indirect_block);
                         free(double_indirect_block);
-                        return read_block_result;
+                        return process_res;
                     }
-                    n++;
+                    double_idx++;
                 }
-                k++;
+                single_idx++;
             }
         }
-        i++;
+        block_iter++;
     }
 
-    free(direct_block);
-    if (indirect_block) {
-        free(indirect_block);
+    free(primary_block);
+    if (single_indirect_block) {
+        free(single_indirect_block);
     }
     if (double_indirect_block) {
         free(double_indirect_block);
