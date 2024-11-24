@@ -103,7 +103,7 @@ int list_directory(int img, int inode_number) {
                 indirect_buffer = fs_xmalloc(block_size);
             }
 
-            int sub_block = 0;
+            size_t sub_block = 0;
             while (sub_block < (block_size / sizeof(int)) && block_buffer[sub_block] != 0 && remaining_bytes > 0) {
                 read_status = fetch_block(img, indirect_buffer, &remaining_bytes, block_size, block_buffer[sub_block]);
                 if (read_status < 0) {
@@ -125,7 +125,7 @@ int list_directory(int img, int inode_number) {
                 indirect_buffer = fs_xmalloc(block_size);
             }
 
-            int sub_block = 0;
+            size_t sub_block = 0;
             while (sub_block < (block_size / sizeof(int)) && remaining_bytes > 0 && block_buffer[sub_block] != 0) {
                 if (pread(img, indirect_buffer, block_size, block_size * block_buffer[sub_block]) < block_size) {
                     free(block_buffer);
@@ -138,7 +138,7 @@ int list_directory(int img, int inode_number) {
                     double_indirect_buffer = fs_xmalloc(block_size);
                 }
 
-                int sub_sub_block = 0;
+                size_t sub_sub_block = 0;
                 while (sub_sub_block < (block_size / sizeof(int)) && remaining_bytes > 0 && indirect_buffer[sub_sub_block] != 0) {
                     read_status = fetch_block(img, double_indirect_buffer, &remaining_bytes, block_size, indirect_buffer[sub_sub_block]);
                     if (read_status < 0) {
